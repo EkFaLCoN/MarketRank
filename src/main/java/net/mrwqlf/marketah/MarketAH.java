@@ -12,7 +12,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -86,7 +85,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
         var artan = p.getInventory().addItem(item);
         if (!artan.isEmpty()) {
             for (ItemStack kalan : artan.values()) depo.kutuyaKoy(p.getUniqueId(), kalan.serializeAsBytes());
-            msj(p, "&eEnvanterin dolu, esya &6/ahkutu&e icine konuldu.");
+            msj(p, "&eEnvanterin dolu, eşya &6/ahkutu&e içine konuldu.");
         }
     }
 
@@ -128,16 +127,16 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 esyaVerOfflineDahil(i.enYuksek, i.item());
 
                 Player kazanan = Bukkit.getPlayer(i.enYuksek);
-                if (kazanan != null) msj(kazanan, "&aAcik artirmayi kazandin: &f" + isim(i.item())
+                if (kazanan != null) msj(kazanan, "&aAçık artırmayı kazandın: &f" + isim(i.item())
                         + " &7(" + ekonomi.bicim(i.fiyat) + ")");
                 Player satici = Bukkit.getPlayer(i.satici);
-                if (satici != null) msj(satici, "&aEsyan satildi: &f" + isim(i.item())
+                if (satici != null) msj(satici, "&aEşyan satıldı: &f" + isim(i.item())
                         + " &7-> " + ekonomi.bicim(net) + " (komisyon %" + komisyon + ")");
             } else {
                 // teklif gelmedi veya sabit ilan suresi doldu
                 esyaVerOfflineDahil(i.satici, i.item());
                 Player satici = Bukkit.getPlayer(i.satici);
-                if (satici != null) msj(satici, "&eIlanin suresi doldu, esyan &6/ahkutu&e icinde.");
+                if (satici != null) msj(satici, "&eİlanının süresi doldu, eşyan &6/ahkutu&e içinde.");
             }
         }
         depo.kaydet();
@@ -152,7 +151,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
 
     private void ilanlarimAc(Player p, int sayfa) {
         List<Ilan> liste = depo.oyuncununIlanlari(p.getUniqueId());
-        menuAc(p, Menu.Tip.ILANLARIM, sayfa, liste, "&8Ilanlarim &7(Sayfa %d/%d)");
+        menuAc(p, Menu.Tip.ILANLARIM, sayfa, liste, "&8İlanlarım &7(Sayfa %d/%d)");
     }
 
     private void menuAc(Player p, Menu.Tip tip, int sayfa, List<Ilan> liste, String baslikSablon) {
@@ -168,31 +167,37 @@ public final class MarketAH extends JavaPlugin implements Listener {
         int bas = (sayfa - 1) * SAYFA_BOYUT;
         for (int s = 0; s < SAYFA_BOYUT && bas + s < liste.size(); s++) {
             Ilan ilan = liste.get(bas + s);
-            ItemStack goster = ilan.item().clone();
+            ItemStack goster;
+            try {
+                goster = ilan.item().clone();
+            } catch (Exception ex) {
+                getLogger().warning("Okunamayan ilan atlandı: " + ilan.id + " (" + ex + ")");
+                continue;
+            }
             ItemMeta meta = goster.getItemMeta();
             if (meta != null) {
                 List<Component> lore = new ArrayList<>();
                 if (meta.hasLore() && meta.lore() != null) lore.addAll(meta.lore());
                 lore.add(c("&8&m                    "));
-                lore.add(c("&7Satici: &f" + ilan.saticiAdi));
+                lore.add(c("&7Satıcı: &f" + ilan.saticiAdi));
                 if (ilan.acikArtirma) {
-                    lore.add(c("&7Tur: &6Acik Artirma"));
-                    lore.add(c("&7Guncel teklif: &a" + ekonomi.bicim(ilan.fiyat)));
-                    lore.add(c("&7En yuksek: &f" + (ilan.teklifVar() ? ilan.enYuksekAdi : "yok")));
-                    lore.add(c("&7Kalan sure: &f" + ilan.kalanSure(simdi)));
+                    lore.add(c("&7Tür: &6Açık Artırma"));
+                    lore.add(c("&7Güncel teklif: &a" + ekonomi.bicim(ilan.fiyat)));
+                    lore.add(c("&7En yüksek: &f" + (ilan.teklifVar() ? ilan.enYuksekAdi : "yok")));
+                    lore.add(c("&7Kalan süre: &f" + ilan.kalanSure(simdi)));
                     if (tip == Menu.Tip.MARKET) {
                         double sonraki = Ekonomi.yuvarla(ilan.fiyat + minArtis(ilan.fiyat));
-                        lore.add(c("&eSol tik: teklif ver (&a" + ekonomi.bicim(sonraki) + "&e)"));
+                        lore.add(c("&eSol tık: teklif ver (&a" + ekonomi.bicim(sonraki) + "&e)"));
                     }
                 } else {
-                    lore.add(c("&7Tur: &bSabit Fiyat"));
+                    lore.add(c("&7Tür: &bSabit Fiyat"));
                     lore.add(c("&7Fiyat: &a" + ekonomi.bicim(ilan.fiyat)));
-                    lore.add(c("&7Kalan sure: &f" + ilan.kalanSure(simdi)));
-                    if (tip == Menu.Tip.MARKET) lore.add(c("&eSol tik: satin al"));
+                    lore.add(c("&7Kalan süre: &f" + ilan.kalanSure(simdi)));
+                    if (tip == Menu.Tip.MARKET) lore.add(c("&eSol tık: satın al"));
                 }
                 if (tip == Menu.Tip.ILANLARIM) {
-                    if (ilan.acikArtirma && ilan.teklifVar()) lore.add(c("&cTeklif alan ilan iptal edilemez"));
-                    else lore.add(c("&cSag tik: ilani geri cek"));
+                    if (ilan.acikArtirma && ilan.teklifVar()) lore.add(c("&cTeklif almış ilan iptal edilemez"));
+                    else lore.add(c("&cSağ tık: ilanı geri çek"));
                 }
                 meta.lore(lore);
                 goster.setItemMeta(meta);
@@ -202,10 +207,10 @@ public final class MarketAH extends JavaPlugin implements Listener {
         }
 
         // alt bar
-        if (sayfa > 1) inv.setItem(45, buton(Material.ARROW, "&eOnceki sayfa"));
+        if (sayfa > 1) inv.setItem(45, buton(Material.ARROW, "&eÖnceki sayfa"));
         if (sayfa < maxSayfa) inv.setItem(53, buton(Material.ARROW, "&eSonraki sayfa"));
         inv.setItem(49, buton(Material.GOLD_INGOT, "&6Bakiyen: &a" + ekonomi.bicim(ekonomi.bakiye(p.getUniqueId()))));
-        inv.setItem(47, buton(Material.WRITABLE_BOOK, tip == Menu.Tip.ILANLARIM ? "&eMarkete don" : "&eIlanlarim"));
+        inv.setItem(47, buton(Material.WRITABLE_BOOK, tip == Menu.Tip.ILANLARIM ? "&eMarkete don" : "&eİlanlarım"));
         inv.setItem(51, buton(Material.CHEST, "&ePosta kutusu &7(/ahkutu)"));
 
         p.openInventory(inv);
@@ -220,7 +225,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
             inv.setItem(i, ItemStack.deserializeBytes(liste.get(i)));
             menu.slotKutu.put(i, i);
         }
-        inv.setItem(49, buton(Material.PAPER, "&7Esyalari almak icin tikla"));
+        inv.setItem(49, buton(Material.PAPER, "&7Eşyaları almak için tıkla"));
         p.openInventory(inv);
     }
 
@@ -255,17 +260,6 @@ public final class MarketAH extends JavaPlugin implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         tabela.kaldir(e.getPlayer());
-    }
-
-    @EventHandler
-    public void onHasar(EntityDamageByEntityEvent e) {
-        if (e.isCancelled()) return;
-        Player vuran = null;
-        if (e.getDamager() instanceof Player pl) vuran = pl;
-        else if (e.getDamager() instanceof org.bukkit.entity.Projectile pr
-                && pr.getShooter() instanceof Player pl2) vuran = pl2;
-        if (vuran == null) return;
-        tabela.hasarEkle(vuran.getUniqueId(), e.getFinalDamage());
     }
 
     @EventHandler
@@ -322,7 +316,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
         if (ilanId == null) return;
         Ilan ilan = depo.al(ilanId);
         if (ilan == null) {
-            msj(p, "&cBu ilan artik mevcut degil.");
+            msj(p, "&cBu ilan artık mevcut değil.");
             acSayfa(p, menu.tip, menu.sayfa);
             return;
         }
@@ -333,7 +327,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
         }
 
         if (ilan.satici.equals(p.getUniqueId())) {
-            msj(p, "&cKendi ilanina teklif veremezsin. &7(/ah -> Ilanlarim)");
+            msj(p, "&cKendi ilanına teklif veremezsin. &7(/ah → İlanlarım)");
             return;
         }
 
@@ -348,13 +342,13 @@ public final class MarketAH extends JavaPlugin implements Listener {
 
     private void geriCek(Player p, Ilan ilan, Menu menu) {
         if (ilan.acikArtirma && ilan.teklifVar()) {
-            msj(p, "&cTeklif almis acik artirma iptal edilemez.");
+            msj(p, "&cTeklif almış açık artırma iptal edilemez.");
             return;
         }
         depo.sil(ilan.id);
         esyaVer(p, ilan.item());
         depo.kaydet();
-        msj(p, "&aIlan geri cekildi.");
+        msj(p, "&aİlan geri çekildi.");
         ilanlarimAc(p, menu.sayfa);
     }
 
@@ -371,9 +365,9 @@ public final class MarketAH extends JavaPlugin implements Listener {
         depo.kaydet();
         ekonomi.kaydet();
 
-        msj(p, "&aSatin aldin: &f" + isim(ilan.item()) + " &7(" + ekonomi.bicim(ilan.fiyat) + ")");
+        msj(p, "&aSatın aldın: &f" + isim(ilan.item()) + " &7(" + ekonomi.bicim(ilan.fiyat) + ")");
         Player satici = Bukkit.getPlayer(ilan.satici);
-        if (satici != null) msj(satici, "&a" + p.getName() + " esyani satin aldi: &f" + isim(ilan.item())
+        if (satici != null) msj(satici, "&a" + p.getName() + " eşyanı satın aldı: &f" + isim(ilan.item())
                 + " &7-> " + ekonomi.bicim(net));
         marketAc(p, menu.sayfa);
     }
@@ -384,7 +378,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 : ilan.fiyat;
 
         if (p.getUniqueId().equals(ilan.enYuksek)) {
-            msj(p, "&eEn yuksek teklif zaten senin.");
+            msj(p, "&eEn yüksek teklif zaten senin.");
             return;
         }
         if (!ekonomi.cek(p.getUniqueId(), yeni)) {
@@ -395,7 +389,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
         if (ilan.teklifVar()) {
             ekonomi.ekle(ilan.enYuksek, ilan.fiyat);
             Player eski = Bukkit.getPlayer(ilan.enYuksek);
-            if (eski != null) msj(eski, "&cTeklifin gecildi: &f" + isim(ilan.item())
+            if (eski != null) msj(eski, "&cTeklifin geçildi: &f" + isim(ilan.item())
                     + " &7(paran iade edildi)");
         }
         ilan.fiyat = yeni;
@@ -429,7 +423,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 return true;
             }
             if (!(sender instanceof Player p)) {
-                msj(sender, "&cKonsol icin: /para <oyuncu>");
+                msj(sender, "&cKonsol için: /para <oyuncu>");
                 return true;
             }
             msj(p, "&7Bakiyen: &a" + ekonomi.bicim(ekonomi.bakiye(p.getUniqueId())));
@@ -437,14 +431,14 @@ public final class MarketAH extends JavaPlugin implements Listener {
         }
 
         if (!(sender instanceof Player p)) {
-            msj(sender, "&cBu komut sadece oyuncular icin.");
+            msj(sender, "&cBu komut sadece oyuncular için.");
             return true;
         }
 
         switch (ad) {
             case "tabela" -> {
                 boolean acik = tabela.degistir(p);
-                msj(p, acik ? "&aTabela acildi." : "&7Tabela kapatildi.");
+                msj(p, acik ? "&aTabela açıldı." : "&7Tabela kapatıldı.");
             }
             case "rank" -> rankBilgi(p, args);
             case "ah" -> marketAc(p, 1);
@@ -461,15 +455,15 @@ public final class MarketAH extends JavaPlugin implements Listener {
 
     private void tagKomut(CommandSender sender, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("liste")) {
-            msj(sender, "&7Tanimli taglar (&f" + tabela.taglar().size() + "&7):");
-            if (tabela.taglar().isEmpty()) msj(sender, "  &8(hic tag yok)");
+            msj(sender, "&7Tanımlı rütbeler (&f" + tabela.taglar().size() + "&7):");
+            if (tabela.taglar().isEmpty()) msj(sender, "  &8(hiç rütbe yok)");
             for (var e : tabela.taglar().entrySet()) {
                 sender.sendMessage(c("  &8- &f" + e.getKey() + " &8-> &r" + e.getValue()));
             }
             if (sender.hasPermission("marketah.admin")) {
-                msj(sender, "&8/tag olustur <ad> <bicim> &7| &8/tag sil <ad>");
+                msj(sender, "&8/tag oluştur <ad> <biçim> &7| &8/tag sil <ad>");
                 msj(sender, "&8/tag ver <oyuncu> <ad> &7| &8/tag al <oyuncu>");
-                msj(sender, "&8Ornek: &7/tag olustur kral &8[&6&lKRAL&8]");
+                msj(sender, "&8Örnek: &7/tag oluştur kral &8[&6&lKRAL&8]");
             }
             return;
         }
@@ -481,56 +475,56 @@ public final class MarketAH extends JavaPlugin implements Listener {
         switch (args[0].toLowerCase()) {
             case "olustur", "ekle" -> {
                 if (args.length < 3) {
-                    msj(sender, "&cKullanim: /tag olustur <ad> <bicim>");
-                    msj(sender, "&7Ornek: &f/tag olustur kral &8[&6&lKRAL&8]");
+                    msj(sender, "&cKullanım: /tag oluştur <ad> <biçim>");
+                    msj(sender, "&7Örnek: &f/tag oluştur kral &8[&6&lKRAL&8]");
                     return;
                 }
                 String bicim = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
                 boolean yeni = tabela.tagOlustur(args[1], bicim);
                 tabela.kaydet();
-                sender.sendMessage(c("&8[&6Market&8] &a" + (yeni ? "Tag olusturuldu" : "Tag guncellendi")
+                sender.sendMessage(c("&8[&6Market&8] &a" + (yeni ? "Rütbe oluşturuldu" : "Rütbe güncellendi")
                         + ": &f" + args[1].toLowerCase() + " &8-> &r" + bicim));
             }
             case "sil" -> {
                 if (args.length < 2) {
-                    msj(sender, "&cKullanim: /tag sil <ad>");
+                    msj(sender, "&cKullanım: /tag sil <ad>");
                     return;
                 }
                 if (tabela.tagSil(args[1])) {
                     tabela.kaydet();
-                    msj(sender, "&aTag silindi: &f" + args[1].toLowerCase());
+                    msj(sender, "&aRütbe silindi: &f" + args[1].toLowerCase());
                 } else {
-                    msj(sender, "&cBoyle bir tag yok.");
+                    msj(sender, "&cBöyle bir rütbe yok.");
                 }
             }
             case "ver" -> {
                 if (args.length < 3) {
-                    msj(sender, "&cKullanim: /tag ver <oyuncu> <ad>");
+                    msj(sender, "&cKullanım: /tag ver <oyuncu> <ad>");
                     return;
                 }
                 OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[1]);
                 if (!tabela.tagVer(hedef.getUniqueId(), args[2])) {
-                    msj(sender, "&cBoyle bir tag yok: &f" + args[2]);
+                    msj(sender, "&cBöyle bir rütbe yok: &f" + args[2]);
                     return;
                 }
                 tabela.kaydet();
-                msj(sender, "&f" + args[1] + " &aartik &r" + tabela.taglar().get(args[2].toLowerCase()));
+                msj(sender, "&f" + args[1] + " &aartık &r" + tabela.taglar().get(args[2].toLowerCase()));
                 Player hp = hedef.getPlayer();
                 if (hp != null) {
                     tabela.kaldir(hp);
                     tabela.goster(hp);
-                    msj(hp, "&aYeni tagin: &r" + tabela.taglar().get(args[2].toLowerCase()));
+                    msj(hp, "&aYeni rütben: &r" + tabela.taglar().get(args[2].toLowerCase()));
                 }
             }
             case "al", "sifirla" -> {
                 if (args.length < 2) {
-                    msj(sender, "&cKullanim: /tag al <oyuncu>");
+                    msj(sender, "&cKullanım: /tag al <oyuncu>");
                     return;
                 }
                 OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[1]);
                 tabela.tagAl(hedef.getUniqueId());
                 tabela.kaydet();
-                msj(sender, "&f" + args[1] + " &7oyuncusunun tagi kaldirildi.");
+                msj(sender, "&f" + args[1] + " &7oyuncusunun rütbesi kaldırıldı.");
             }
             default -> msj(sender, "&cBilinmeyen alt komut. &7/tag liste");
         }
@@ -539,45 +533,35 @@ public final class MarketAH extends JavaPlugin implements Listener {
     private void rankBilgi(Player p, String[] args) {
         if (args.length > 0) {
             OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[0]);
-            msj(p, "&f" + args[0] + " &7rank: &b" + tabela.rank(hedef.getUniqueId()));
+            String t = tabela.tagAdi(hedef.getUniqueId());
+            msj(p, "&f" + args[0] + " &7rütbesi: &r"
+                    + (t == null ? "&7yok" : tabela.taglar().get(t)));
             return;
         }
         UUID u = p.getUniqueId();
-        msj(p, "&7Rankin: &b" + tabela.rank(u) + " &8| &7Hasar: &c"
-                + Math.round(tabela.hasar(u)));
-        var sonraki = tabela.sonrakiRank(u);
-        if (sonraki == null) {
-            msj(p, "&6En yuksek ranktasin!");
-        } else {
-            double eksik = sonraki.getValue() - ekonomi.bakiye(u);
-            msj(p, "&7Sonraki: &b" + sonraki.getKey() + " &7- gereken: &a"
-                    + ekonomi.bicim(eksik));
-        }
-        msj(p, "&8Tum ranklar:");
-        var liste = new ArrayList<>(tabela.ranklar());
-        java.util.Collections.reverse(liste);
-        for (var r : liste) {
-            msj(p, "  &b" + r.getKey() + " &8- &a" + ekonomi.bicim(r.getValue()));
-        }
+        String t = tabela.tagAdi(u);
+        msj(p, "&7Rütben: &r" + (t == null ? "&7yok" : tabela.taglar().get(t)));
+        msj(p, "&7Vuruş hasarın: &c" + Math.round(tabela.vurusHasari(p) * 10) / 10.0);
+        msj(p, "&7Paran: &a" + ekonomi.bicim(ekonomi.bakiye(u)));
     }
 
     private void odeme(Player p, String[] args) {
         if (args.length < 2) {
-            msj(p, "&cKullanim: /odeme <oyuncu> <miktar>");
+            msj(p, "&cKullanım: /odeme <oyuncu> <miktar>");
             return;
         }
         Player hedef = Bukkit.getPlayerExact(args[0]);
         if (hedef == null) {
-            msj(p, "&cOyuncu cevrimici degil.");
+            msj(p, "&cOyuncu çevrimiçi değil.");
             return;
         }
         if (hedef.getUniqueId().equals(p.getUniqueId())) {
-            msj(p, "&cKendine para gonderemezsin.");
+            msj(p, "&cKendine para gönderemezsin.");
             return;
         }
         double miktar = sayi(args[1]);
         if (miktar <= 0) {
-            msj(p, "&cGecerli bir miktar gir.");
+            msj(p, "&cGeçerli bir miktar gir.");
             return;
         }
         if (!ekonomi.cek(p.getUniqueId(), miktar)) {
@@ -586,24 +570,24 @@ public final class MarketAH extends JavaPlugin implements Listener {
         }
         ekonomi.ekle(hedef.getUniqueId(), miktar);
         ekonomi.kaydet();
-        msj(p, "&a" + ekonomi.bicim(miktar) + " gonderildi -> &f" + hedef.getName());
-        msj(hedef, "&a" + p.getName() + " sana " + ekonomi.bicim(miktar) + " gonderdi.");
+        msj(p, "&a" + ekonomi.bicim(miktar) + " gönderildi → &f" + hedef.getName());
+        msj(hedef, "&a" + p.getName() + " sana " + ekonomi.bicim(miktar) + " gönderdi.");
     }
 
     private void ilanKoy(Player p, String[] args, boolean acikArtirma) {
         if (args.length < 1) {
-            msj(p, acikArtirma ? "&cKullanim: /acikartirma <baslangic fiyati> [saat]"
-                    : "&cKullanim: /sat <fiyat>");
+            msj(p, acikArtirma ? "&cKullanım: /acikartirma <başlangıç fiyatı> [saat]"
+                    : "&cKullanım: /sat <fiyat>");
             return;
         }
         ItemStack elde = p.getInventory().getItemInMainHand();
         if (elde.getType() == Material.AIR) {
-            msj(p, "&cElinde esya yok.");
+            msj(p, "&cElinde eşya yok.");
             return;
         }
         int max = getConfig().getInt("max-ilan", 6);
         if (depo.oyuncununIlanlari(p.getUniqueId()).size() >= max && !p.hasPermission("marketah.admin")) {
-            msj(p, "&cEn fazla &f" + max + " &cilan acabilirsin.");
+            msj(p, "&cEn fazla &f" + max + " &cilan açabilirsin.");
             return;
         }
 
@@ -611,7 +595,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
         double min = getConfig().getDouble("min-fiyat", 1.0);
         double maxF = getConfig().getDouble("max-fiyat", 10000000.0);
         if (fiyat < min || fiyat > maxF) {
-            msj(p, "&cFiyat &f" + ekonomi.bicim(min) + " &c- &f" + ekonomi.bicim(maxF) + " &carasinda olmali.");
+            msj(p, "&cFiyat &f" + ekonomi.bicim(min) + " &c- &f" + ekonomi.bicim(maxF) + " &carasında olmalı.");
             return;
         }
 
@@ -622,7 +606,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
             int maxSaat = getConfig().getInt("acik-artirma.max-saat", 48);
             int saat = args.length > 1 ? (int) sayi(args[1]) : varsayilan;
             if (saat < 1 || saat > maxSaat) {
-                msj(p, "&cSure 1 - " + maxSaat + " saat arasinda olmali.");
+                msj(p, "&cSüre 1 - " + maxSaat + " saat arasında olmalı.");
                 return;
             }
             bitis = simdi + saat * 3600000L;
@@ -632,18 +616,29 @@ public final class MarketAH extends JavaPlugin implements Listener {
         }
 
         ItemStack kopya = elde.clone();
-        Ilan ilan = new Ilan(UUID.randomUUID(), p.getUniqueId(), p.getName(),
-                kopya.serializeAsBytes(), acikArtirma, fiyat, simdi, bitis);
+        Ilan ilan;
+        try {
+            byte[] veri = kopya.serializeAsBytes();
+            ItemStack deneme = ItemStack.deserializeBytes(veri);   // geri okunabiliyor mu?
+            if (deneme == null || deneme.getType() == Material.AIR) throw new IllegalStateException("bos esya");
+            ilan = new Ilan(UUID.randomUUID(), p.getUniqueId(), p.getName(),
+                    veri, acikArtirma, fiyat, simdi, bitis);
+        } catch (Exception ex) {
+            msj(p, "&cBu eşya markete konulamıyor. &7(" + ex.getClass().getSimpleName() + ")");
+            getLogger().warning("İlan oluşturulamadı (" + p.getName() + " / "
+                    + kopya.getType() + "): " + ex);
+            return;
+        }
         depo.ekle(ilan);
         p.getInventory().setItemInMainHand(null);
         depo.kaydet();
 
-        msj(p, "&aIlan acildi: &f" + isim(kopya) + " &7- "
-                + (acikArtirma ? "acik artirma, baslangic " : "fiyat ")
+        msj(p, "&aİlan açıldı: &f" + isim(kopya) + " &7- "
+                + (acikArtirma ? "açık artırma, başlangıç " : "fiyat ")
                 + ekonomi.bicim(fiyat));
 
-        Bukkit.broadcast(c("&8[&6Market&8] &f" + p.getName() + " &7bir esya "
-                + (acikArtirma ? "acik artirmaya koydu" : "satisa koydu") + ": &f"
+        Bukkit.broadcast(c("&8[&6Market&8] &f" + p.getName() + " &7bir eşya "
+                + (acikArtirma ? "açık artırmaya koydu" : "satışa koydu") + ": &f"
                 + isim(kopya) + " &7- &a" + ekonomi.bicim(fiyat) + " &8(/ah)"));
     }
 
@@ -682,7 +677,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 }
                 depo.kaydet();
                 ekonomi.kaydet();
-                msj(sender, "&a" + n + " ilan iptal edildi, esyalar saticilara iade edildi.");
+                msj(sender, "&a" + n + " ilan iptal edildi, eşyalar satıcılara iade edildi.");
             }
             case "reload" -> {
                 ekonomi.kaydet();
@@ -693,7 +688,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                     tabela.kaldir(pl);
                     tabela.goster(pl);
                 }
-                msj(sender, "&aConfig yeniden yuklendi.");
+                msj(sender, "&aAyarlar yeniden yüklendi.");
             }
             default -> msj(sender, "&cBilinmeyen alt komut.");
         }

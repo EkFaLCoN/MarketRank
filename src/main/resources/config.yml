@@ -31,29 +31,13 @@ tabela:
   # kac tick'te bir guncellensin (20 tick = 1 saniye)
   guncelleme: 20
 
-# ---------------- Rank sistemi ----------------
-# Oyuncunun parasina gore otomatik rank. Buyukten kucuge yazmana gerek yok.
-ranklar:
-  Cirak: 0
-  Gezgin: 2500
-  Tuccar: 10000
-  Zengin: 50000
-  Lord: 200000
-  Efsane: 1000000
 
-# ---------------- Rank oneki ----------------
-# {rank} yerine oyuncunun ranki gelir. Bu onek oyuncunun mevcut
-# ismini/bayragini DEGISTIRMEZ, sadece en basa - bayragin onune - eklenir.
-# Sonuc: [Tuccar] <bayrak><isim>
-rank-onek: "&8[&b{rank}&8] &r"
-# Elle tag verilmemis oyuncularda paraya gore otomatik rank gosterilsin mi?
-# Taglari tamamen kendin yonetmek istiyorsan: false
-otomatik-rank: false
-
+# ---------------- Rütbe (tag) ----------------
 # Irk bayraginin etrafindaki parantez
 bayrak-parantez-ac: "&8["
 bayrak-parantez-kapa: "&8] "
 
+# Rütbe sohbette görünsün mü
 rank-sohbette: true
-# Tab listesi ve kafa ustu isimde rank onegi (bayrak korunur, onune eklenir)
+# Tab listesi ve kafa üstü isimde rütbe (bayrak korunur, sıralama: [Bayrak] Rütbe İsim)
 rank-isim-oneki: true

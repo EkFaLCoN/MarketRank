@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,8 +49,6 @@ public final class Tabela {
     private final Map<String, String> tagTanim = new java.util.LinkedHashMap<>();
     private File tagDosya;
 
-    /** rank adi -> gereken para, buyukten kucuge sirali */
-    private final List<Map.Entry<String, Double>> ranklar = new ArrayList<>();
 
     public Tabela(MarketAH plugin, Ekonomi ekonomi) {
         this.plugin = plugin;
@@ -105,13 +102,6 @@ public final class Tabela {
             kaydet();
         }
 
-        ranklar.clear();
-        ConfigurationSection s = plugin.getConfig().getConfigurationSection("ranklar");
-        if (s != null) {
-            for (String ad : s.getKeys(false)) ranklar.add(Map.entry(ad, s.getDouble(ad)));
-        }
-        if (ranklar.isEmpty()) ranklar.add(Map.entry("Oyuncu", 0.0));
-        ranklar.sort(Comparator.comparingDouble((Map.Entry<String, Double> e) -> e.getValue()).reversed());
     }
 
     public void kaydet() {
@@ -133,52 +123,40 @@ public final class Tabela {
         }
     }
 
-    public void hasarEkle(UUID uuid, double miktar) {
-        if (miktar <= 0) return;
-        hasar.merge(uuid, miktar, Double::sum);
-    }
-
-    public double hasar(UUID uuid) {
-        return hasar.getOrDefault(uuid, 0.0);
-    }
-
-    public String rank(UUID uuid) {
-        double para = ekonomi.bakiye(uuid);
-        for (Map.Entry<String, Double> e : ranklar) {
-            if (para >= e.getValue()) return e.getKey();
-        }
-        return ranklar.get(ranklar.size() - 1).getKey();
-    }
-
-    /** Bir sonraki rank ve gereken para; yoksa null. */
-    public Map.Entry<String, Double> sonrakiRank(UUID uuid) {
-        double para = ekonomi.bakiye(uuid);
-        Map.Entry<String, Double> sonraki = null;
-        for (Map.Entry<String, Double> e : ranklar) {
-            if (e.getValue() > para && (sonraki == null || e.getValue() < sonraki.getValue())) sonraki = e;
-        }
-        return sonraki;
-    }
-
     /**
      * Rank onekini dondurur. Oyuncunun kendi isim/bayrak bilesenine
      * DOKUNMAZ - sadece onune eklenmek uzere hazirlanir.
      */
     public Component rankOnEk(Player p) {
         String tag = tagAdi(p.getUniqueId());
-        if (tag != null) return c(tagTanim.get(tag) + "&r ");
-
-        // elle tag verilmemis: otomatik rank (kapatilabilir)
-        if (!plugin.getConfig().getBoolean("otomatik-rank", true)) return Component.empty();
-        String fmt = plugin.getConfig().getString("rank-onek", "&8[&b{rank}&8] &r");
-        return c(fmt.replace("{rank}", rank(p.getUniqueId())));
+        if (tag == null) return Component.empty();
+        return c(tagTanim.get(tag) + "&r ");
     }
 
     /** Tabeladaki "Rank:" satirinda gosterilecek metin. */
     public String rankMetni(Player p) {
         String tag = tagAdi(p.getUniqueId());
-        if (tag != null) return tagTanim.get(tag);
-        return "&b" + rank(p.getUniqueId());
+        if (tag == null) return "&7yok";
+        // tabelada parantez gosterilmez: [ ] karakterleri temizlenir
+        return tagTanim.get(tag).replace("[", "").replace("]", "").trim();
+    }
+
+    /** Oyuncunun su an vurabilecegi hasar (silah + buyu + efekt dahil). */
+    public double vurusHasari(Player p) {
+        double taban = 1.0;
+        var attr = p.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE);
+        if (attr != null) taban = attr.getValue();
+
+        var elde = p.getInventory().getItemInMainHand();
+        int keskinlik = elde.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.SHARPNESS);
+        if (keskinlik > 0) taban += 1.0 + 0.5 * (keskinlik - 1);
+
+        var guc = p.getPotionEffect(org.bukkit.potion.PotionEffectType.STRENGTH);
+        if (guc != null) taban += 3.0 * (guc.getAmplifier() + 1);
+        var zayiflik = p.getPotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS);
+        if (zayiflik != null) taban -= 4.0 * (zayiflik.getAmplifier() + 1);
+
+        return Math.max(0, taban);
     }
 
     /** Irk bayragini parantez icine alir: [⚑] */
@@ -224,10 +202,6 @@ public final class Tabela {
     public String tagAdi(UUID uuid) {
         String t = oyuncuTag.get(uuid);
         return (t != null && tagTanim.containsKey(t)) ? t : null;
-    }
-
-    public List<Map.Entry<String, Double>> ranklar() {
-        return ranklar;
     }
 
     // ---------------------------------------------------------------- tabela
@@ -364,9 +338,9 @@ public final class Tabela {
         satirlar[0] = "&7&m                      ";
         satirlar[1] = "&fOyuncu: &r" + displayAd;
         satirlar[2] = "&fPara: &a" + ekonomi.bicim(ekonomi.bakiye(u));
-        satirlar[3] = "&fRank: &r" + rankMetni(p);
+        satirlar[3] = "&fRütbe: &r" + rankMetni(p);
         satirlar[4] = "&r ";
-        satirlar[5] = "&fHasar: &c" + HASAR.format(hasar(u));
+        satirlar[5] = "&fVuruş Hasarı: &c" + HASAR.format(vurusHasari(p));
         satirlar[6] = "&7&m                      ";
         satirlar[7] = ip;
 
