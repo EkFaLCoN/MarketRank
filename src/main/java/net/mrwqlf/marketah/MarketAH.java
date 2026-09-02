@@ -463,6 +463,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
             if (sender.hasPermission("marketah.admin")) {
                 msj(sender, "&8/tag oluştur <ad> <biçim> &7| &8/tag sil <ad>");
                 msj(sender, "&8/tag ver <oyuncu> <ad> &7| &8/tag al <oyuncu>");
+                msj(sender, "&8/tag renk <ad> <&renkkodu> &7- isim rengi");
                 msj(sender, "&8Örnek: &7/tag oluştur kral &8[&6&lKRAL&8]");
             }
             return;
@@ -484,6 +485,24 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 tabela.kaydet();
                 sender.sendMessage(c("&8[&6Market&8] &a" + (yeni ? "Rütbe oluşturuldu" : "Rütbe güncellendi")
                         + ": &f" + args[1].toLowerCase() + " &8-> &r" + bicim));
+            }
+            case "renk" -> {
+                if (args.length < 3) {
+                    msj(sender, "&cKullanım: /tag renk <ad> <&renkkodu>");
+                    msj(sender, "&7Örnek: &f/tag renk vip &e  &7(isim sarı olur)");
+                    return;
+                }
+                if (!tabela.tagRenk(args[1], args[2])) {
+                    msj(sender, "&cBöyle bir rütbe yok: &f" + args[1]);
+                    return;
+                }
+                tabela.kaydet();
+                sender.sendMessage(c("&8[&6Market&8] &aİsim rengi ayarlandı: &f"
+                        + args[1].toLowerCase() + " &8-> " + args[2] + "örnek isim"));
+                for (Player pl : Bukkit.getOnlinePlayers()) {
+                    tabela.kaldir(pl);
+                    tabela.goster(pl);
+                }
             }
             case "sil" -> {
                 if (args.length < 2) {

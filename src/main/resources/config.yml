@@ -33,7 +33,7 @@ tabela:
 
 
 # ---------------- Rütbe (tag) ----------------
-# Irk bayraginin etrafindaki parantez
+# Irk bayrağının etrafına eklenecek karakterler (boş = parantezsiz)
 bayrak-parantez-ac: "&8["
 bayrak-parantez-kapa: "&8] "
 

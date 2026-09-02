@@ -47,6 +47,8 @@ public final class Tabela {
     private final Map<UUID, String> oyuncuTag = new HashMap<>();
     /** tag adi -> gorunum bicimi (& renk kodlariyla) */
     private final Map<String, String> tagTanim = new java.util.LinkedHashMap<>();
+    /** tag adi -> ismin rengi (& kodu); yoksa irk rengi kullanilir */
+    private final Map<String, String> tagRenk = new HashMap<>();
     private File tagDosya;
 
 
@@ -82,10 +84,13 @@ public final class Tabela {
 
         oyuncuTag.clear();
         tagTanim.clear();
+        tagRenk.clear();
         if (tagDosya != null && tagDosya.exists()) {
             FileConfiguration tcfg = YamlConfiguration.loadConfiguration(tagDosya);
             ConfigurationSection ts = tcfg.getConfigurationSection("taglar");
             if (ts != null) for (String ad : ts.getKeys(false)) tagTanim.put(ad.toLowerCase(), ts.getString(ad, ad));
+            ConfigurationSection rs = tcfg.getConfigurationSection("renkler");
+            if (rs != null) for (String ad : rs.getKeys(false)) tagRenk.put(ad.toLowerCase(), rs.getString(ad, ""));
             ConfigurationSection os = tcfg.getConfigurationSection("oyuncular");
             if (os != null) for (String u : os.getKeys(false)) {
                 try {
@@ -96,9 +101,9 @@ public final class Tabela {
         }
 
         if (tagTanim.isEmpty()) {
-            tagTanim.put("yonetici", "&4[&c&lYÖNETİCİ&4]&r ");
-            tagTanim.put("moderator", "&2[&a&lMODERATÖR&2]&r ");
-            tagTanim.put("rehber", "&3[&b&lREHBER&3]&r ");
+            tagTanim.put("yonetici", "&c&lYÖNETİCİ&r ");
+            tagTanim.put("moderator", "&a&lMODERATÖR&r ");
+            tagTanim.put("rehber", "&b&lREHBER&r ");
             kaydet();
         }
 
@@ -112,6 +117,7 @@ public final class Tabela {
         cfg.set("kapali", k);
         FileConfiguration tcfg = new YamlConfiguration();
         for (Map.Entry<String, String> e : tagTanim.entrySet()) tcfg.set("taglar." + e.getKey(), e.getValue());
+        for (Map.Entry<String, String> e : tagRenk.entrySet()) tcfg.set("renkler." + e.getKey(), e.getValue());
         for (Map.Entry<UUID, String> e : oyuncuTag.entrySet()) tcfg.set("oyuncular." + e.getKey(), e.getValue());
 
         try {
@@ -173,8 +179,26 @@ public final class Tabela {
         return tagTanim.put(ad.toLowerCase(), bicim) == null;
     }
 
+    /** Rutbeye sahip oyuncularin isim rengi. */
+    public boolean tagRenk(String ad, String renkKodu) {
+        if (!tagVar(ad)) return false;
+        tagRenk.put(ad.toLowerCase(), renkKodu);
+        return true;
+    }
+
+    /** Oyuncunun isim rengi: rutbe rengi varsa o, yoksa null (irk rengi kalir). */
+    public NamedTextColor isimRengi(UUID uuid) {
+        String tag = tagAdi(uuid);
+        if (tag == null) return null;
+        String kod = tagRenk.get(tag);
+        if (kod == null || kod.isBlank()) return null;
+        Component ornek = c(kod + "x");
+        return ornek.color() == null ? null : NamedTextColor.nearestTo(ornek.color());
+    }
+
     public boolean tagSil(String ad) {
         String k = ad.toLowerCase();
+        tagRenk.remove(k);
         if (tagTanim.remove(k) == null) return false;
         oyuncuTag.entrySet().removeIf(e -> e.getValue().equals(k));
         return true;
@@ -248,7 +272,9 @@ public final class Tabela {
         if (t == null) return rankOnEk(p).append(p.displayName());
         // bayrak (prefix) kendi rengiyle kalir; irk rengi SADECE isme uygulanir
         Component isim = Component.text(p.getName());
-        if (t.color() != null) isim = isim.color(t.color());
+        NamedTextColor rutbeRengi = isimRengi(p.getUniqueId());
+        if (rutbeRengi != null) isim = isim.color(rutbeRengi);
+        else if (t.color() != null) isim = isim.color(t.color());
         return parantezliBayrak(t.prefix()).append(rankOnEk(p)).append(isim).append(t.suffix());
     }
 
@@ -306,8 +332,9 @@ public final class Tabela {
                 // once bayrak (parantezli), sonra tag, en son isim
                 onek = parantezliBayrak(kaynak.prefix());
                 hedef.suffix(kaynak.suffix());
-                var renk = kaynak.color();
-                if (renk != null) hedef.color(NamedTextColor.nearestTo(renk));
+                NamedTextColor rutbeRengi = isimRengi(q.getUniqueId());
+                if (rutbeRengi != null) hedef.color(rutbeRengi);
+                else if (kaynak.color() != null) hedef.color(NamedTextColor.nearestTo(kaynak.color()));
             }
             onek = onek.append(rankOnEk(q));
             hedef.prefix(onek);
