@@ -1,6 +1,7 @@
 package net.mrwqlf.marketah;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -240,7 +241,8 @@ public final class Tabela {
                 // bayrak + irk rengi aynen korunur, rank sadece onune eklenir
                 onek = onek.append(kaynak.prefix());
                 hedef.suffix(kaynak.suffix());
-                if (kaynak.color() != null) hedef.color(kaynak.color());
+                var renk = kaynak.color();
+                if (renk != null) hedef.color(NamedTextColor.nearestTo(renk));
             }
             hedef.prefix(onek);
             if (!hedef.hasEntry(q.getName())) hedef.addEntry(q.getName());
