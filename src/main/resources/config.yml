@@ -1,0 +1,51 @@
+# MarketAH ayarlari
+para-birimi: "TL"
+baslangic-bakiye: 500.0
+
+# Satistan kesilen komisyon (yuzde)
+komisyon: 5.0
+
+# Bir oyuncunun ayni anda acabilecegi ilan sayisi
+max-ilan: 6
+
+# Sabit fiyatli ilanlarin gecerlilik suresi (saat). 0 = sinirsiz
+ilan-suresi-saat: 72
+
+# Acik artirma
+acik-artirma:
+  varsayilan-saat: 6
+  max-saat: 48
+  # Her teklifte fiyatin en az bu kadar artmasi gerekir (yuzde)
+  min-artis-yuzde: 5.0
+  # ...ama en az bu kadar (sabit)
+  min-artis-sabit: 10.0
+
+min-fiyat: 1.0
+max-fiyat: 10000000.0
+
+# ---------------- Scoreboard (tabela) ----------------
+tabela:
+  aktif: true
+  sunucu-adi: "&6&lCURSED &e&lVALLEY"
+  sunucu-ip: "&fsunucu.ip.adresi"
+  # kac tick'te bir guncellensin (20 tick = 1 saniye)
+  guncelleme: 20
+
+# ---------------- Rank sistemi ----------------
+# Oyuncunun parasina gore otomatik rank. Buyukten kucuge yazmana gerek yok.
+ranklar:
+  Cirak: 0
+  Gezgin: 2500
+  Tuccar: 10000
+  Zengin: 50000
+  Lord: 200000
+  Efsane: 1000000
+
+# ---------------- Rank oneki ----------------
+# {rank} yerine oyuncunun ranki gelir. Bu onek oyuncunun mevcut
+# ismini/bayragini DEGISTIRMEZ, sadece en basa - bayragin onune - eklenir.
+# Sonuc: [Tuccar] <bayrak><isim>
+rank-onek: "&8[&b{rank}&8] &r"
+rank-sohbette: true
+# Tab listesi ve kafa ustu isimde rank onegi (bayrak korunur, onune eklenir)
+rank-isim-oneki: true

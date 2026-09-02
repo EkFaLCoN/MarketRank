@@ -1,0 +1,52 @@
+name: MarketAH
+version: '${project.version}'
+main: net.mrwqlf.marketah.MarketAH
+api-version: '1.21'
+author: MRWQLF
+description: Para sistemi + acik artirma / market (AH)
+
+commands:
+  ah:
+    description: Market menusunu acar
+    usage: /ah
+    aliases: [market, pazar]
+  sat:
+    description: Elindeki esyayi sabit fiyatla satisa koyar
+    usage: /sat <fiyat>
+  acikartirma:
+    description: Elindeki esyayi acik artirmaya koyar
+    usage: /acikartirma <baslangic fiyati> [saat]
+    aliases: [aa, artirma]
+  ahkutu:
+    description: Satilan/iade edilen esyalarini alirsin
+    usage: /ahkutu
+    aliases: [kutu, posta]
+  para:
+    description: Bakiyeni gosterir
+    usage: /para [oyuncu]
+    aliases: [bakiye, cuzdan]
+  odeme:
+    description: Baska oyuncuya para gonderir
+    usage: /odeme <oyuncu> <miktar>
+    aliases: [gonder, pay]
+  tabela:
+    description: Yan tabelayi acar/kapatir
+    usage: /tabela
+    aliases: [sb, scoreboard]
+  rank:
+    description: Rankini ve ilerlemeni gosterir
+    usage: /rank [oyuncu]
+    aliases: [rutbe]
+  ahadmin:
+    description: Yonetici komutlari
+    usage: /ahadmin <ver|al|ayarla|sil> ...
+    permission: marketah.admin
+
+permissions:
+  marketah.admin:
+    description: Para verme/alma ve ilan silme
+    default: op
+  marketah.sat:
+    default: true
+  marketah.kullan:
+    default: true
