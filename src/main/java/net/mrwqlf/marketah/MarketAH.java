@@ -53,6 +53,12 @@ public final class MarketAH extends JavaPlugin implements Listener {
 
         // Suresi dolan ilanlari kontrol et (5 saniyede bir)
         Bukkit.getScheduler().runTaskTimer(this, this::sureKontrol, 100L, 100L);
+        // Coin taramasi: envantere giren coin aninda paraya donusur
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (!getConfig().getBoolean("coin-sistemi", true)) return;
+            for (Player p : Bukkit.getOnlinePlayers()) coinleriBozdur(p);
+        }, 20L, 10L);
+
         // Otomatik kayit (5 dakikada bir)
         Bukkit.getScheduler().runTaskTimer(this, this::kaydet, 6000L, 6000L);
 
@@ -189,6 +195,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                     if (tip == Menu.Tip.MARKET) {
                         double sonraki = Ekonomi.yuvarla(ilan.fiyat + minArtis(ilan.fiyat));
                         lore.add(c("&eSol tık: teklif ver (&a" + ekonomi.bicim(sonraki) + "&e)"));
+                        lore.add(c("&7Farklı miktar: &f/ah teklif"));
                     }
                 } else {
                     lore.add(c("&7Tür: &bSabit Fiyat"));
@@ -263,24 +270,28 @@ public final class MarketAH extends JavaPlugin implements Listener {
         });
     }
 
-    @EventHandler
-    public void onCoinAl(org.bukkit.event.player.PlayerAttemptPickupItemEvent e) {
-        if (!getConfig().getBoolean("coin-sistemi", true)) return;
-        ItemStack it = e.getItem().getItemStack();
-        Coin coin = Coin.coinMi(it);
-        if (coin == null) return;
-
-        e.setCancelled(true);
-        Player p = e.getPlayer();
-        int adet = it.getAmount();
+    /** Oyuncunun envanterindeki tum coinleri paraya cevirir. */
+    private void coinleriBozdur(Player p) {
+        var env = p.getInventory();
         long toplam = 0;
-        for (int i = 0; i < adet; i++) toplam += coin.rastgeleDeger();
+        int adetToplam = 0;
+        Coin sonCoin = null;
+
+        for (int i = 0; i < env.getSize(); i++) {
+            ItemStack it = env.getItem(i);
+            Coin coin = Coin.coinMi(it);
+            if (coin == null) continue;
+            int adet = it.getAmount();
+            for (int k = 0; k < adet; k++) toplam += coin.rastgeleDeger();
+            adetToplam += adet;
+            sonCoin = coin;
+            env.setItem(i, null);
+        }
+        if (toplam == 0) return;
 
         ekonomi.ekle(p.getUniqueId(), toplam);
         ekonomi.kaydet();
-        e.getItem().remove();
-
-        p.sendMessage(c("&8[&6Coin&8] &r" + coin.gorunum + " &8x" + adet + " &a→ &f"
+        p.sendMessage(c("&8[&6Coin&8] &r" + sonCoin.gorunum + " &8x" + adetToplam + " &a→ &f"
                 + ekonomi.bicim(toplam)));
         p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.4f);
     }
@@ -487,10 +498,12 @@ public final class MarketAH extends JavaPlugin implements Listener {
                         case "ilanlarim", "benim" -> ilanlarimAc(p, 1);
                         case "kutu", "posta" -> kutuAc(p);
                         case "limit" -> ahLimit(p, java.util.Arrays.copyOfRange(args, 1, args.length));
+                        case "teklif", "bid" -> teklifKomut(p, java.util.Arrays.copyOfRange(args, 1, args.length));
                         default -> {
                             msj(p, "&8/ah &7- market menüsü");
                             msj(p, "&8/ah sell <fiyat> &7- elindekini satışa koy");
                             msj(p, "&8/ah aa <fiyat> [saat] &7- açık artırmaya koy");
+                            msj(p, "&8/ah teklif <no> <miktar> &7- açık artırmada fiyat artır");
                             msj(p, "&8/ah ilanlarim &7| &8/ah kutu");
                         }
                     }
@@ -507,6 +520,84 @@ public final class MarketAH extends JavaPlugin implements Listener {
             }
         }
         return true;
+    }
+
+    /** Acik artirmalari sira numarasiyla listeler (teklif komutu icin). */
+    private List<Ilan> acikArtirmalar() {
+        List<Ilan> l = new ArrayList<>();
+        for (Ilan i : depo.siraliListe()) if (i.acikArtirma) l.add(i);
+        return l;
+    }
+
+    private void teklifKomut(Player p, String[] args) {
+        List<Ilan> liste = acikArtirmalar();
+        long simdi = System.currentTimeMillis();
+
+        if (args.length == 0) {
+            if (liste.isEmpty()) {
+                msj(p, "&7Şu an açık artırma yok.");
+                return;
+            }
+            msj(p, "&7Açık artırmalar &8(&f/ah teklif <no> <miktar>&8)");
+            for (int i = 0; i < liste.size(); i++) {
+                Ilan il = liste.get(i);
+                double sonraki = il.teklifVar()
+                        ? Ekonomi.yuvarla(il.fiyat + minArtis(il.fiyat)) : il.fiyat;
+                p.sendMessage(c("  &6#" + (i + 1) + " &f" + isim(il.item())
+                        + " &8| &7güncel: &a" + ekonomi.bicim(il.fiyat)
+                        + " &8| &7en az: &e" + ekonomi.bicim(sonraki)
+                        + " &8| &7" + il.kalanSure(simdi)));
+            }
+            return;
+        }
+        if (args.length < 2) {
+            msj(p, "&cKullanım: /ah teklif <no> <miktar>");
+            msj(p, "&7Numaraları görmek için: &f/ah teklif");
+            return;
+        }
+
+        int no = (int) sayi(args[0]);
+        if (no < 1 || no > liste.size()) {
+            msj(p, "&cGeçersiz numara. &7/ah teklif &cile listeye bak.");
+            return;
+        }
+        Ilan ilan = liste.get(no - 1);
+        double miktar = Ekonomi.yuvarla(sayi(args[1]));
+
+        if (ilan.satici.equals(p.getUniqueId())) {
+            msj(p, "&cKendi ilanına teklif veremezsin.");
+            return;
+        }
+        if (p.getUniqueId().equals(ilan.enYuksek)) {
+            msj(p, "&eEn yüksek teklif zaten senin.");
+            return;
+        }
+        double enAz = ilan.teklifVar() ? Ekonomi.yuvarla(ilan.fiyat + minArtis(ilan.fiyat)) : ilan.fiyat;
+        if (miktar < enAz) {
+            msj(p, "&cEn az &f" + ekonomi.bicim(enAz) + " &cteklif vermelisin.");
+            return;
+        }
+        if (!ekonomi.cek(p.getUniqueId(), miktar)) {
+            msj(p, "&cYeterli paran yok. Gereken: &f" + ekonomi.bicim(miktar));
+            return;
+        }
+
+        if (ilan.teklifVar()) {
+            ekonomi.ekle(ilan.enYuksek, ilan.fiyat);
+            Player eski = Bukkit.getPlayer(ilan.enYuksek);
+            if (eski != null) msj(eski, "&cTeklifin geçildi: &f" + isim(ilan.item())
+                    + " &7(paran iade edildi)");
+        }
+        ilan.fiyat = miktar;
+        ilan.enYuksek = p.getUniqueId();
+        ilan.enYuksekAdi = p.getName();
+        depo.kaydet();
+        ekonomi.kaydet();
+
+        msj(p, "&aTeklif verildi: &f" + ekonomi.bicim(miktar) + " &7(" + isim(ilan.item()) + ")");
+        Player satici = Bukkit.getPlayer(ilan.satici);
+        if (satici != null) msj(satici, "&aİlanına yeni teklif: &f" + ekonomi.bicim(miktar)
+                + " &7(" + p.getName() + ")");
     }
 
     /** Oyuncunun aynı anda açabileceği ilan sayısı. */
@@ -596,9 +687,11 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 }
                 int adet = args.length > 3 ? (int) sayi(args[3]) : 1;
                 if (adet < 1 || adet > 64) adet = 1;
-                esyaVer(hedef, coin.esya(adet, ekonomi.birim()));
-                sender.sendMessage(c("&8[&6Coin&8] &a" + hedef.getName() + " oyuncusuna &r"
-                        + coin.gorunum + " &8x" + adet + " &averildi."));
+                // yere birakilir: oyuncu aldigi an paraya doner
+                hedef.getWorld().dropItem(hedef.getLocation().add(0, 0.5, 0),
+                        coin.esya(adet, ekonomi.birim()));
+                sender.sendMessage(c("&8[&6Coin&8] &a" + hedef.getName() + " oyuncusunun önüne &r"
+                        + coin.gorunum + " &8x" + adet + " &abırakıldı."));
             }
             default -> msj(sender, "&cBilinmeyen alt komut. &7/coin");
         }
