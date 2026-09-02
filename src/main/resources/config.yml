@@ -5,8 +5,9 @@ baslangic-bakiye: 500.0
 # Satistan kesilen komisyon (yuzde)
 komisyon: 5.0
 
-# Bir oyuncunun ayni anda acabilecegi ilan sayisi
-max-ilan: 6
+# Normal oyuncunun aynı anda açabileceği ilan sayısı
+# (VIP için: /ah limit <oyuncu> <sayı>)
+max-ilan: 4
 
 # Sabit fiyatli ilanlarin gecerlilik suresi (saat). 0 = sinirsiz
 ilan-suresi-saat: 72
@@ -19,6 +20,9 @@ acik-artirma:
   min-artis-yuzde: 5.0
   # ...ama en az bu kadar (sabit)
   min-artis-sabit: 10.0
+
+# Coin eşyaları envantere alınınca paraya dönüşsün mü
+coin-sistemi: true
 
 min-fiyat: 1.0
 max-fiyat: 10000000.0
@@ -36,6 +40,10 @@ tabela:
 # Irk bayrağının etrafına eklenecek karakterler (boş = parantezsiz)
 bayrak-parantez-ac: "&8["
 bayrak-parantez-kapa: "&8] "
+
+# Sohbette isimden sonraki ayırıcı ve mesaj metninin rengi
+sohbet-ayirici: "&7: "
+sohbet-mesaj-rengi: "&f"
 
 # Rütbe sohbette görünsün mü
 rank-sohbette: true

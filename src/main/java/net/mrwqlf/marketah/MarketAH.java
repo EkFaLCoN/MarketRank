@@ -39,6 +39,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        Coin.ANAHTAR = new org.bukkit.NamespacedKey(this, "coin");
         ekonomi = new Ekonomi(this);
         depo = new Depo(this);
         tabela = new Tabela(this, ekonomi);
@@ -246,10 +247,42 @@ public final class MarketAH extends JavaPlugin implements Listener {
         if (!getConfig().getBoolean("rank-sohbette", true)) return;
         // sohbette de ayni duzen: [Bayrak] Tag Isim
         Component isim = tabela.bayrakliIsim(e.getPlayer());
-        e.renderer((source, sourceDisplayName, message, viewer) ->
-                isim
-                        .append(Component.text(": "))
-                        .append(message));
+        String ayirici = getConfig().getString("sohbet-ayirici", "&7: ");
+        String mesajRengi = getConfig().getString("sohbet-mesaj-rengi", "&f");
+        Component ayr = LegacyComponentSerializer.legacyAmpersand().deserialize(ayirici);
+        // once rutbenin mesaj rengi, yoksa config'teki varsayilan
+        var rutbeRengi = tabela.mesajRengi(e.getPlayer().getUniqueId());
+        var renk = rutbeRengi != null
+                ? rutbeRengi
+                : LegacyComponentSerializer.legacyAmpersand().deserialize(mesajRengi + "x").color();
+
+        e.renderer((source, sourceDisplayName, message, viewer) -> {
+            Component govde = renk == null ? message : message.colorIfAbsent(renk);
+            // kok notr: parcalar birbirinin rengini miras almaz
+            return Component.empty().append(isim).append(ayr).append(govde);
+        });
+    }
+
+    @EventHandler
+    public void onCoinAl(org.bukkit.event.player.PlayerAttemptPickupItemEvent e) {
+        if (!getConfig().getBoolean("coin-sistemi", true)) return;
+        ItemStack it = e.getItem().getItemStack();
+        Coin coin = Coin.coinMi(it);
+        if (coin == null) return;
+
+        e.setCancelled(true);
+        Player p = e.getPlayer();
+        int adet = it.getAmount();
+        long toplam = 0;
+        for (int i = 0; i < adet; i++) toplam += coin.rastgeleDeger();
+
+        ekonomi.ekle(p.getUniqueId(), toplam);
+        ekonomi.kaydet();
+        e.getItem().remove();
+
+        p.sendMessage(c("&8[&6Coin&8] &r" + coin.gorunum + " &8x" + adet + " &a→ &f"
+                + ekonomi.bicim(toplam)));
+        p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.4f);
     }
 
     @EventHandler
@@ -410,6 +443,10 @@ public final class MarketAH extends JavaPlugin implements Listener {
         String ad = cmd.getName().toLowerCase();
 
         if (ad.equals("ahadmin")) return ahAdmin(sender, args);
+        if (ad.equals("coin")) {
+            coinKomut(sender, args);
+            return true;
+        }
         if (ad.equals("tag")) {
             tagKomut(sender, args);
             return true;
@@ -441,7 +478,26 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 msj(p, acik ? "&aTabela açıldı." : "&7Tabela kapatıldı.");
             }
             case "rank" -> rankBilgi(p, args);
-            case "ah" -> marketAc(p, 1);
+            case "ah" -> {
+                if (args.length > 0) {
+                    switch (args[0].toLowerCase()) {
+                        case "sell", "sat" -> ilanKoy(p, java.util.Arrays.copyOfRange(args, 1, args.length), false);
+                        case "aa", "acikartirma", "auction" ->
+                                ilanKoy(p, java.util.Arrays.copyOfRange(args, 1, args.length), true);
+                        case "ilanlarim", "benim" -> ilanlarimAc(p, 1);
+                        case "kutu", "posta" -> kutuAc(p);
+                        case "limit" -> ahLimit(p, java.util.Arrays.copyOfRange(args, 1, args.length));
+                        default -> {
+                            msj(p, "&8/ah &7- market menüsü");
+                            msj(p, "&8/ah sell <fiyat> &7- elindekini satışa koy");
+                            msj(p, "&8/ah aa <fiyat> [saat] &7- açık artırmaya koy");
+                            msj(p, "&8/ah ilanlarim &7| &8/ah kutu");
+                        }
+                    }
+                    return true;
+                }
+                marketAc(p, 1);
+            }
             case "ahkutu" -> kutuAc(p);
             case "sat" -> ilanKoy(p, args, false);
             case "acikartirma" -> ilanKoy(p, args, true);
@@ -451,6 +507,101 @@ public final class MarketAH extends JavaPlugin implements Listener {
             }
         }
         return true;
+    }
+
+    /** Oyuncunun aynı anda açabileceği ilan sayısı. */
+    private int ilanHakki(Player p) {
+        Integer ozel = tabela.ilanLimiti(p.getUniqueId());
+        if (ozel != null) return ozel;
+        return getConfig().getInt("max-ilan", 4);
+    }
+
+    private void ahLimit(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            if (sender instanceof Player p) {
+                msj(p, "&7İlan hakkın: &f" + depo.oyuncununIlanlari(p.getUniqueId()).size()
+                        + "&7/&f" + ilanHakki(p));
+            }
+            if (sender.hasPermission("marketah.admin")) {
+                msj(sender, "&8/ah limit <oyuncu> <sayı> &7- oyuncunun ilan hakkını ayarla");
+                msj(sender, "&8/ah limit <oyuncu> sıfırla &7- varsayılana döndür");
+            }
+            return;
+        }
+        if (!sender.hasPermission("marketah.admin")) {
+            msj(sender, "&cYetkin yok.");
+            return;
+        }
+        if (args.length < 2) {
+            msj(sender, "&cKullanım: /ah limit <oyuncu> <sayı|sıfırla>");
+            return;
+        }
+        OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[0]);
+        if (args[1].equalsIgnoreCase("sıfırla") || args[1].equalsIgnoreCase("sifirla")) {
+            tabela.ilanLimitiAyarla(hedef.getUniqueId(), null);
+            tabela.kaydet();
+            msj(sender, "&f" + args[0] + " &7artık varsayılan hakka sahip &8("
+                    + getConfig().getInt("max-ilan", 4) + ")");
+            return;
+        }
+        int sayiDeger = (int) sayi(args[1]);
+        if (sayiDeger < 1 || sayiDeger > 54) {
+            msj(sender, "&c1 - 54 arasında bir sayı gir.");
+            return;
+        }
+        tabela.ilanLimitiAyarla(hedef.getUniqueId(), sayiDeger);
+        tabela.kaydet();
+        msj(sender, "&f" + args[0] + " &aartık &f" + sayiDeger + " &ailan açabilir.");
+        Player hp = hedef.getPlayer();
+        if (hp != null) msj(hp, "&aİlan hakkın &f" + sayiDeger + " &aoldu!");
+    }
+
+    private void coinKomut(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("marketah.admin")) {
+            msj(sender, "&cYetkin yok.");
+            return;
+        }
+        if (args.length == 0) {
+            msj(sender, "&8/coin ver <oyuncu> <tür> [adet] &7- coin verir");
+            msj(sender, "&8/coin sistem &7- coin sistemini aç/kapat");
+            StringBuilder sb = new StringBuilder();
+            for (Coin c : Coin.values()) sb.append("&f").append(c.ad).append(" &8(&a")
+                    .append(String.format("%,d", c.min)).append("-")
+                    .append(String.format("%,d", c.max)).append("&8) ");
+            msj(sender, "&7Türler: " + sb);
+            return;
+        }
+
+        switch (args[0].toLowerCase()) {
+            case "sistem" -> {
+                boolean yeni = !getConfig().getBoolean("coin-sistemi", true);
+                getConfig().set("coin-sistemi", yeni);
+                saveConfig();
+                msj(sender, yeni ? "&aCoin sistemi açıldı." : "&cCoin sistemi kapatıldı.");
+            }
+            case "ver" -> {
+                if (args.length < 3) {
+                    msj(sender, "&cKullanım: /coin ver <oyuncu> <tür> [adet]");
+                    return;
+                }
+                Player hedef = Bukkit.getPlayerExact(args[1]);
+                if (hedef == null) {
+                    msj(sender, "&cOyuncu çevrimiçi değil.");
+                    return;
+                }
+                Coin coin = Coin.bul(args[2]);
+                if (coin == null) {
+                    msj(sender, "&cGeçersiz tür: &f" + args[2]);
+                    return;
+                }
+                int adet = args.length > 3 ? (int) sayi(args[3]) : 1;
+                if (adet < 1 || adet > 64) adet = 1;
+                esyaVer(hedef, coin.esya(adet, ekonomi.birim()));
+                sender.sendMessage(c("&8[&6Coin&8] &a" + hedef.getName() + " oyuncusuna &r"
+                        + coin.gorunum + " &8x" + adet + " &averildi."));
+            }
+            default -> msj(sender, "&cBilinmeyen alt komut. &7/coin");
+        }
     }
 
     private void tagKomut(CommandSender sender, String[] args) {
@@ -464,6 +615,7 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 msj(sender, "&8/tag oluştur <ad> <biçim> &7| &8/tag sil <ad>");
                 msj(sender, "&8/tag ver <oyuncu> <ad> &7| &8/tag al <oyuncu>");
                 msj(sender, "&8/tag renk <ad> <&renkkodu> &7- isim rengi");
+                msj(sender, "&8/tag mesajrenk <ad> <&renkkodu> &7- sohbet mesajı rengi");
                 msj(sender, "&8Örnek: &7/tag oluştur kral &8[&6&lKRAL&8]");
             }
             return;
@@ -485,6 +637,20 @@ public final class MarketAH extends JavaPlugin implements Listener {
                 tabela.kaydet();
                 sender.sendMessage(c("&8[&6Market&8] &a" + (yeni ? "Rütbe oluşturuldu" : "Rütbe güncellendi")
                         + ": &f" + args[1].toLowerCase() + " &8-> &r" + bicim));
+            }
+            case "mesajrenk", "sohbetrenk" -> {
+                if (args.length < 3) {
+                    msj(sender, "&cKullanım: /tag mesajrenk <ad> <&renkkodu>");
+                    msj(sender, "&7Örnek: &f/tag mesajrenk vip &e  &7(VIP'lerin mesajı sarı olur)");
+                    return;
+                }
+                if (!tabela.tagMesajRenk(args[1], args[2])) {
+                    msj(sender, "&cBöyle bir rütbe yok: &f" + args[1]);
+                    return;
+                }
+                tabela.kaydet();
+                sender.sendMessage(c("&8[&6Market&8] &aMesaj rengi ayarlandı: &f"
+                        + args[1].toLowerCase() + " &8-> " + args[2] + "örnek mesaj"));
             }
             case "renk" -> {
                 if (args.length < 3) {
@@ -604,9 +770,9 @@ public final class MarketAH extends JavaPlugin implements Listener {
             msj(p, "&cElinde eşya yok.");
             return;
         }
-        int max = getConfig().getInt("max-ilan", 6);
-        if (depo.oyuncununIlanlari(p.getUniqueId()).size() >= max && !p.hasPermission("marketah.admin")) {
-            msj(p, "&cEn fazla &f" + max + " &cilan açabilirsin.");
+        int max = ilanHakki(p);
+        if (depo.oyuncununIlanlari(p.getUniqueId()).size() >= max) {
+            msj(p, "&cİlan hakkın doldu &7(" + max + "&7). &cVIP ile artırabilirsin.");
             return;
         }
 

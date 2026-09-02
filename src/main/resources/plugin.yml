@@ -7,11 +7,15 @@ description: Para sistemi + acik artirma / market (AH)
 
 commands:
   ah:
-    description: Market menusunu acar
-    usage: /ah
+    description: Market menusu ve satis komutlari
+    usage: /ah [sell <fiyat> | aa <fiyat> [saat] | ilanlarim | kutu | limit]
     aliases: [market, pazar]
+  coin:
+    description: Coin verme ve sistem ayari
+    usage: /coin <ver|sistem>
+    permission: marketah.admin
   sat:
-    description: Elindeki esyayi sabit fiyatla satisa koyar
+    description: (kisayol) /ah sell ile ayni
     usage: /sat <fiyat>
   acikartirma:
     description: Elindeki esyayi acik artirmaya koyar

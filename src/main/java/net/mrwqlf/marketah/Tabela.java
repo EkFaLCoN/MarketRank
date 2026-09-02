@@ -49,7 +49,11 @@ public final class Tabela {
     private final Map<String, String> tagTanim = new java.util.LinkedHashMap<>();
     /** tag adi -> ismin rengi (& kodu); yoksa irk rengi kullanilir */
     private final Map<String, String> tagRenk = new HashMap<>();
+    /** tag adi -> sohbet mesaji rengi (& kodu) */
+    private final Map<String, String> tagMesajRenk = new HashMap<>();
     private File tagDosya;
+    /** oyuncu -> ozel ilan limiti (VIP vb.) */
+    private final Map<UUID, Integer> ilanLimiti = new HashMap<>();
 
 
     public Tabela(MarketAH plugin, Ekonomi ekonomi) {
@@ -85,12 +89,23 @@ public final class Tabela {
         oyuncuTag.clear();
         tagTanim.clear();
         tagRenk.clear();
+        tagMesajRenk.clear();
+        ilanLimiti.clear();
         if (tagDosya != null && tagDosya.exists()) {
             FileConfiguration tcfg = YamlConfiguration.loadConfiguration(tagDosya);
             ConfigurationSection ts = tcfg.getConfigurationSection("taglar");
             if (ts != null) for (String ad : ts.getKeys(false)) tagTanim.put(ad.toLowerCase(), ts.getString(ad, ad));
             ConfigurationSection rs = tcfg.getConfigurationSection("renkler");
             if (rs != null) for (String ad : rs.getKeys(false)) tagRenk.put(ad.toLowerCase(), rs.getString(ad, ""));
+            ConfigurationSection ms = tcfg.getConfigurationSection("mesaj-renkleri");
+            if (ms != null) for (String ad : ms.getKeys(false)) tagMesajRenk.put(ad.toLowerCase(), ms.getString(ad, ""));
+            ConfigurationSection ls = tcfg.getConfigurationSection("ilan-limitleri");
+            if (ls != null) for (String u : ls.getKeys(false)) {
+                try {
+                    ilanLimiti.put(UUID.fromString(u), ls.getInt(u));
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
             ConfigurationSection os = tcfg.getConfigurationSection("oyuncular");
             if (os != null) for (String u : os.getKeys(false)) {
                 try {
@@ -118,6 +133,8 @@ public final class Tabela {
         FileConfiguration tcfg = new YamlConfiguration();
         for (Map.Entry<String, String> e : tagTanim.entrySet()) tcfg.set("taglar." + e.getKey(), e.getValue());
         for (Map.Entry<String, String> e : tagRenk.entrySet()) tcfg.set("renkler." + e.getKey(), e.getValue());
+        for (Map.Entry<String, String> e : tagMesajRenk.entrySet()) tcfg.set("mesaj-renkleri." + e.getKey(), e.getValue());
+        for (Map.Entry<UUID, Integer> e : ilanLimiti.entrySet()) tcfg.set("ilan-limitleri." + e.getKey(), e.getValue());
         for (Map.Entry<UUID, String> e : oyuncuTag.entrySet()) tcfg.set("oyuncular." + e.getKey(), e.getValue());
 
         try {
@@ -167,10 +184,13 @@ public final class Tabela {
 
     /** Irk bayragini parantez icine alir: [⚑] */
     private Component parantezliBayrak(Component bayrak) {
-        if (bayrak.equals(Component.empty())) return bayrak;
+        String duz = LegacyComponentSerializer.legacyAmpersand().serialize(bayrak);
+        if (duz.isBlank()) return Component.empty();
+        // irk eklentisinin prefix'indeki bosluklar kirpilir: [⚑ ] degil [⚑]
+        Component temiz = LegacyComponentSerializer.legacyAmpersand().deserialize(duz.strip());
         String ac = plugin.getConfig().getString("bayrak-parantez-ac", "&8[");
         String kap = plugin.getConfig().getString("bayrak-parantez-kapa", "&8] ");
-        return c(ac).append(bayrak).append(c(kap));
+        return Component.empty().append(c(ac)).append(temiz).append(c(kap));
     }
 
     // ---------------------------------------------------------------- tag
@@ -190,7 +210,24 @@ public final class Tabela {
     public NamedTextColor isimRengi(UUID uuid) {
         String tag = tagAdi(uuid);
         if (tag == null) return null;
-        String kod = tagRenk.get(tag);
+        return kodaRenk(tagRenk.get(tag));
+    }
+
+    /** Rutbeye sahip oyuncularin sohbet mesaji rengi. */
+    public boolean tagMesajRenk(String ad, String renkKodu) {
+        if (!tagVar(ad)) return false;
+        tagMesajRenk.put(ad.toLowerCase(), renkKodu);
+        return true;
+    }
+
+    /** Oyuncunun sohbet mesaji rengi; rutbesi/rengi yoksa null. */
+    public NamedTextColor mesajRengi(UUID uuid) {
+        String tag = tagAdi(uuid);
+        if (tag == null) return null;
+        return kodaRenk(tagMesajRenk.get(tag));
+    }
+
+    private NamedTextColor kodaRenk(String kod) {
         if (kod == null || kod.isBlank()) return null;
         Component ornek = c(kod + "x");
         return ornek.color() == null ? null : NamedTextColor.nearestTo(ornek.color());
@@ -199,6 +236,7 @@ public final class Tabela {
     public boolean tagSil(String ad) {
         String k = ad.toLowerCase();
         tagRenk.remove(k);
+        tagMesajRenk.remove(k);
         if (tagTanim.remove(k) == null) return false;
         oyuncuTag.entrySet().removeIf(e -> e.getValue().equals(k));
         return true;
@@ -223,6 +261,15 @@ public final class Tabela {
     }
 
     /** Oyuncunun tag adi, yoksa null. */
+    public Integer ilanLimiti(UUID uuid) {
+        return ilanLimiti.get(uuid);
+    }
+
+    public void ilanLimitiAyarla(UUID uuid, Integer deger) {
+        if (deger == null) ilanLimiti.remove(uuid);
+        else ilanLimiti.put(uuid, deger);
+    }
+
     public String tagAdi(UUID uuid) {
         String t = oyuncuTag.get(uuid);
         return (t != null && tagTanim.containsKey(t)) ? t : null;
@@ -275,7 +322,11 @@ public final class Tabela {
         NamedTextColor rutbeRengi = isimRengi(p.getUniqueId());
         if (rutbeRengi != null) isim = isim.color(rutbeRengi);
         else if (t.color() != null) isim = isim.color(t.color());
-        return parantezliBayrak(t.prefix()).append(rankOnEk(p)).append(isim).append(t.suffix());
+        return Component.empty()
+                .append(parantezliBayrak(t.prefix()))
+                .append(rankOnEk(p))
+                .append(isim)
+                .append(t.suffix());
     }
 
     private Component c(String s) {
