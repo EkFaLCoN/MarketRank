@@ -37,6 +37,10 @@ commands:
     description: Rankini ve ilerlemeni gosterir
     usage: /rank [oyuncu]
     aliases: [rutbe]
+  tag:
+    description: Tag olusturma ve verme
+    usage: /tag <liste|olustur|sil|ver|al>
+    aliases: [etiket]
   ahadmin:
     description: Yonetici komutlari
     usage: /ahadmin <ver|al|ayarla|sil> ...

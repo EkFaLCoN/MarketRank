@@ -46,6 +46,14 @@ ranklar:
 # ismini/bayragini DEGISTIRMEZ, sadece en basa - bayragin onune - eklenir.
 # Sonuc: [Tuccar] <bayrak><isim>
 rank-onek: "&8[&b{rank}&8] &r"
+# Elle tag verilmemis oyuncularda paraya gore otomatik rank gosterilsin mi?
+# Taglari tamamen kendin yonetmek istiyorsan: false
+otomatik-rank: false
+
+# Irk bayraginin etrafindaki parantez
+bayrak-parantez-ac: "&8["
+bayrak-parantez-kapa: "&8] "
+
 rank-sohbette: true
 # Tab listesi ve kafa ustu isimde rank onegi (bayrak korunur, onune eklenir)
 rank-isim-oneki: true

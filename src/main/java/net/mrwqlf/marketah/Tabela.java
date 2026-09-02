@@ -44,6 +44,12 @@ public final class Tabela {
     private final Map<UUID, String> takimAdi = new HashMap<>();
     private int takimSayac = 0;
 
+    /** oyuncuya elle verilen tag adi */
+    private final Map<UUID, String> oyuncuTag = new HashMap<>();
+    /** tag adi -> gorunum bicimi (& renk kodlariyla) */
+    private final Map<String, String> tagTanim = new java.util.LinkedHashMap<>();
+    private File tagDosya;
+
     /** rank adi -> gereken para, buyukten kucuge sirali */
     private final List<Map.Entry<String, Double>> ranklar = new ArrayList<>();
 
@@ -51,6 +57,7 @@ public final class Tabela {
         this.plugin = plugin;
         this.ekonomi = ekonomi;
         this.hasarDosya = new File(plugin.getDataFolder(), "hasar.yml");
+        this.tagDosya = new File(plugin.getDataFolder(), "taglar.yml");
         yukle();
     }
 
@@ -76,6 +83,28 @@ public final class Tabela {
             }
         }
 
+        oyuncuTag.clear();
+        tagTanim.clear();
+        if (tagDosya != null && tagDosya.exists()) {
+            FileConfiguration tcfg = YamlConfiguration.loadConfiguration(tagDosya);
+            ConfigurationSection ts = tcfg.getConfigurationSection("taglar");
+            if (ts != null) for (String ad : ts.getKeys(false)) tagTanim.put(ad.toLowerCase(), ts.getString(ad, ad));
+            ConfigurationSection os = tcfg.getConfigurationSection("oyuncular");
+            if (os != null) for (String u : os.getKeys(false)) {
+                try {
+                    oyuncuTag.put(UUID.fromString(u), os.getString(u, "").toLowerCase());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+
+        if (tagTanim.isEmpty()) {
+            tagTanim.put("yonetici", "&4[&c&lYÖNETİCİ&4]&r ");
+            tagTanim.put("moderator", "&2[&a&lMODERATÖR&2]&r ");
+            tagTanim.put("rehber", "&3[&b&lREHBER&3]&r ");
+            kaydet();
+        }
+
         ranklar.clear();
         ConfigurationSection s = plugin.getConfig().getConfigurationSection("ranklar");
         if (s != null) {
@@ -91,8 +120,13 @@ public final class Tabela {
         List<String> k = new ArrayList<>();
         for (UUID u : kapali) k.add(u.toString());
         cfg.set("kapali", k);
+        FileConfiguration tcfg = new YamlConfiguration();
+        for (Map.Entry<String, String> e : tagTanim.entrySet()) tcfg.set("taglar." + e.getKey(), e.getValue());
+        for (Map.Entry<UUID, String> e : oyuncuTag.entrySet()) tcfg.set("oyuncular." + e.getKey(), e.getValue());
+
         try {
             if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
+            tcfg.save(tagDosya);
             cfg.save(hasarDosya);
         } catch (IOException ex) {
             plugin.getLogger().warning("hasar.yml kaydedilemedi: " + ex.getMessage());
@@ -131,8 +165,65 @@ public final class Tabela {
      * DOKUNMAZ - sadece onune eklenmek uzere hazirlanir.
      */
     public Component rankOnEk(Player p) {
+        String tag = tagAdi(p.getUniqueId());
+        if (tag != null) return c(tagTanim.get(tag) + "&r ");
+
+        // elle tag verilmemis: otomatik rank (kapatilabilir)
+        if (!plugin.getConfig().getBoolean("otomatik-rank", true)) return Component.empty();
         String fmt = plugin.getConfig().getString("rank-onek", "&8[&b{rank}&8] &r");
         return c(fmt.replace("{rank}", rank(p.getUniqueId())));
+    }
+
+    /** Tabeladaki "Rank:" satirinda gosterilecek metin. */
+    public String rankMetni(Player p) {
+        String tag = tagAdi(p.getUniqueId());
+        if (tag != null) return tagTanim.get(tag);
+        return "&b" + rank(p.getUniqueId());
+    }
+
+    /** Irk bayragini parantez icine alir: [⚑] */
+    private Component parantezliBayrak(Component bayrak) {
+        if (bayrak.equals(Component.empty())) return bayrak;
+        String ac = plugin.getConfig().getString("bayrak-parantez-ac", "&8[");
+        String kap = plugin.getConfig().getString("bayrak-parantez-kapa", "&8] ");
+        return c(ac).append(bayrak).append(c(kap));
+    }
+
+    // ---------------------------------------------------------------- tag
+
+    public boolean tagOlustur(String ad, String bicim) {
+        return tagTanim.put(ad.toLowerCase(), bicim) == null;
+    }
+
+    public boolean tagSil(String ad) {
+        String k = ad.toLowerCase();
+        if (tagTanim.remove(k) == null) return false;
+        oyuncuTag.entrySet().removeIf(e -> e.getValue().equals(k));
+        return true;
+    }
+
+    public boolean tagVar(String ad) {
+        return tagTanim.containsKey(ad.toLowerCase());
+    }
+
+    public Map<String, String> taglar() {
+        return tagTanim;
+    }
+
+    public boolean tagVer(UUID uuid, String ad) {
+        if (!tagVar(ad)) return false;
+        oyuncuTag.put(uuid, ad.toLowerCase());
+        return true;
+    }
+
+    public void tagAl(UUID uuid) {
+        oyuncuTag.remove(uuid);
+    }
+
+    /** Oyuncunun tag adi, yoksa null. */
+    public String tagAdi(UUID uuid) {
+        String t = oyuncuTag.get(uuid);
+        return (t != null && tagTanim.containsKey(t)) ? t : null;
     }
 
     public List<Map.Entry<String, Double>> ranklar() {
@@ -180,11 +271,11 @@ public final class Tabela {
     /** Irk eklentisinin bayragi + oyuncu ismi (ana scoreboard takimindan). */
     public Component bayrakliIsim(Player p) {
         Team t = Bukkit.getScoreboardManager().getMainScoreboard().getEntryTeam(p.getName());
-        if (t == null) return p.displayName();
+        if (t == null) return rankOnEk(p).append(p.displayName());
         // bayrak (prefix) kendi rengiyle kalir; irk rengi SADECE isme uygulanir
         Component isim = Component.text(p.getName());
         if (t.color() != null) isim = isim.color(t.color());
-        return t.prefix().append(isim).append(t.suffix());
+        return parantezliBayrak(t.prefix()).append(rankOnEk(p)).append(isim).append(t.suffix());
     }
 
     private Component c(String s) {
@@ -235,15 +326,16 @@ public final class Tabela {
             Team hedef = sb.getTeam(tad);
             if (hedef == null) hedef = sb.registerNewTeam(tad);
 
-            Component onek = rankOnEk(q);
+            Component onek = Component.empty();
             Team kaynak = ana.getEntryTeam(q.getName());   // irk eklentisinin takimi
             if (kaynak != null) {
-                // bayrak + irk rengi aynen korunur, rank sadece onune eklenir
-                onek = onek.append(kaynak.prefix());
+                // once bayrak (parantezli), sonra tag, en son isim
+                onek = parantezliBayrak(kaynak.prefix());
                 hedef.suffix(kaynak.suffix());
                 var renk = kaynak.color();
                 if (renk != null) hedef.color(NamedTextColor.nearestTo(renk));
             }
+            onek = onek.append(rankOnEk(q));
             hedef.prefix(onek);
             if (!hedef.hasEntry(q.getName())) hedef.addEntry(q.getName());
         }
@@ -272,7 +364,7 @@ public final class Tabela {
         satirlar[0] = "&7&m                      ";
         satirlar[1] = "&fOyuncu: &r" + displayAd;
         satirlar[2] = "&fPara: &a" + ekonomi.bicim(ekonomi.bakiye(u));
-        satirlar[3] = "&fRank: &b" + rank(u);
+        satirlar[3] = "&fRank: &r" + rankMetni(p);
         satirlar[4] = "&r ";
         satirlar[5] = "&fHasar: &c" + HASAR.format(hasar(u));
         satirlar[6] = "&7&m                      ";

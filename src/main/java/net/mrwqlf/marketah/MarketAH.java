@@ -239,11 +239,10 @@ public final class MarketAH extends JavaPlugin implements Listener {
     @EventHandler
     public void onChat(AsyncChatEvent e) {
         if (!getConfig().getBoolean("rank-sohbette", true)) return;
-        Component onek = tabela.rankOnEk(e.getPlayer());
-        // bayrak + irk rengi irk eklentisinden alinir, sadece onune rank eklenir
+        // sohbette de ayni duzen: [Bayrak] Tag Isim
         Component isim = tabela.bayrakliIsim(e.getPlayer());
         e.renderer((source, sourceDisplayName, message, viewer) ->
-                onek.append(isim)
+                isim
                         .append(Component.text(": "))
                         .append(message));
     }
@@ -417,6 +416,10 @@ public final class MarketAH extends JavaPlugin implements Listener {
         String ad = cmd.getName().toLowerCase();
 
         if (ad.equals("ahadmin")) return ahAdmin(sender, args);
+        if (ad.equals("tag")) {
+            tagKomut(sender, args);
+            return true;
+        }
 
         if (ad.equals("para")) {
             if (args.length > 0) {
@@ -454,6 +457,83 @@ public final class MarketAH extends JavaPlugin implements Listener {
             }
         }
         return true;
+    }
+
+    private void tagKomut(CommandSender sender, String[] args) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("liste")) {
+            msj(sender, "&7Tanimli taglar (&f" + tabela.taglar().size() + "&7):");
+            if (tabela.taglar().isEmpty()) msj(sender, "  &8(hic tag yok)");
+            for (var e : tabela.taglar().entrySet()) {
+                sender.sendMessage(c("  &8- &f" + e.getKey() + " &8-> &r" + e.getValue()));
+            }
+            if (sender.hasPermission("marketah.admin")) {
+                msj(sender, "&8/tag olustur <ad> <bicim> &7| &8/tag sil <ad>");
+                msj(sender, "&8/tag ver <oyuncu> <ad> &7| &8/tag al <oyuncu>");
+                msj(sender, "&8Ornek: &7/tag olustur kral &8[&6&lKRAL&8]");
+            }
+            return;
+        }
+        if (!sender.hasPermission("marketah.admin")) {
+            msj(sender, "&cYetkin yok.");
+            return;
+        }
+
+        switch (args[0].toLowerCase()) {
+            case "olustur", "ekle" -> {
+                if (args.length < 3) {
+                    msj(sender, "&cKullanim: /tag olustur <ad> <bicim>");
+                    msj(sender, "&7Ornek: &f/tag olustur kral &8[&6&lKRAL&8]");
+                    return;
+                }
+                String bicim = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+                boolean yeni = tabela.tagOlustur(args[1], bicim);
+                tabela.kaydet();
+                sender.sendMessage(c("&8[&6Market&8] &a" + (yeni ? "Tag olusturuldu" : "Tag guncellendi")
+                        + ": &f" + args[1].toLowerCase() + " &8-> &r" + bicim));
+            }
+            case "sil" -> {
+                if (args.length < 2) {
+                    msj(sender, "&cKullanim: /tag sil <ad>");
+                    return;
+                }
+                if (tabela.tagSil(args[1])) {
+                    tabela.kaydet();
+                    msj(sender, "&aTag silindi: &f" + args[1].toLowerCase());
+                } else {
+                    msj(sender, "&cBoyle bir tag yok.");
+                }
+            }
+            case "ver" -> {
+                if (args.length < 3) {
+                    msj(sender, "&cKullanim: /tag ver <oyuncu> <ad>");
+                    return;
+                }
+                OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[1]);
+                if (!tabela.tagVer(hedef.getUniqueId(), args[2])) {
+                    msj(sender, "&cBoyle bir tag yok: &f" + args[2]);
+                    return;
+                }
+                tabela.kaydet();
+                msj(sender, "&f" + args[1] + " &aartik &r" + tabela.taglar().get(args[2].toLowerCase()));
+                Player hp = hedef.getPlayer();
+                if (hp != null) {
+                    tabela.kaldir(hp);
+                    tabela.goster(hp);
+                    msj(hp, "&aYeni tagin: &r" + tabela.taglar().get(args[2].toLowerCase()));
+                }
+            }
+            case "al", "sifirla" -> {
+                if (args.length < 2) {
+                    msj(sender, "&cKullanim: /tag al <oyuncu>");
+                    return;
+                }
+                OfflinePlayer hedef = Bukkit.getOfflinePlayer(args[1]);
+                tabela.tagAl(hedef.getUniqueId());
+                tabela.kaydet();
+                msj(sender, "&f" + args[1] + " &7oyuncusunun tagi kaldirildi.");
+            }
+            default -> msj(sender, "&cBilinmeyen alt komut. &7/tag liste");
+        }
     }
 
     private void rankBilgi(Player p, String[] args) {
